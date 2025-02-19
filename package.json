@@ -1,0 +1,12 @@
+{
+    "name": "twiiter-api-v2-client",
+    "version": "0.0.1",
+    "type": "module",
+    "main": "TwiiterAPIv2Client.ts",
+    "dependencies": {
+        "oauth-1.0a": "^2.2.6"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.19"
+    }
+}
