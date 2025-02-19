@@ -53,16 +53,19 @@ export class TwiiterAPIv2Client {
     }
 
     private async checkResponse(response: Response) {
-        const responseBody = await response.text(); // レスポンスボディを取得
+        const responseBody = await response.json(); // JSONとしてパース
 
         // レート制限に引っかかったらエラーを投げる
         if (response.status === 429) throw new TooManyRequestsError(parseInt(response.headers.get('x-rate-limit-reset') || '0'));
 
         // 認証エラー
-        if (response.status === 401) throw new AuthenticationError(`認証エラーが発生しました。詳細: ${responseBody}`);
+        if (response.status === 401) throw new AuthenticationError(`認証エラーが発生しました。詳細: ${JSON.stringify(responseBody)}`);
 
         // 認可エラー
-        if (response.status === 403) throw new AuthorizationError(`権限エラーが発生しました。詳細: ${responseBody}`);
+        if (response.status === 403) throw new AuthorizationError(`権限エラーが発生しました。詳細: ${JSON.stringify(responseBody)}`);
+
+        // 成功時はパース済みのボディを返す
+        return responseBody;
     }
 
     private async generateOAuthHeader(method: string, url: string): Promise<string> {
@@ -115,12 +118,8 @@ export class TwiiterAPIv2Client {
         // リクエストを投げる
         const response = await fetch(url, options);
 
-        // レスポンスのチェック
-        await this.checkResponse(response);
-
-        // 成功時
-        const data = await response.json();
-        return data;
+        // レスポンスのチェックと同時にJSONを取得
+        return await this.checkResponse(response);
     }
 
     /**
@@ -153,10 +152,7 @@ export class TwiiterAPIv2Client {
         // リクエストを投げる
         const response = await fetch(url, options);
 
-        // レスポンスのチェック
-        await this.checkResponse(response);
-
-        // 成功時
-        return await response.json();
+        // レスポンスのチェックと同時にJSONを取得
+        return await this.checkResponse(response);
     }
 }
