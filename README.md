@@ -12,7 +12,7 @@ Twitter API v2のシンプルなTypeScriptクライアント実装です。
 ## 📦 インストール
 
 ```bash
-bun add github:your-username/TwiiterAPIv2Client
+bun add github:RateteDev/TwiiterAPIv2Client
 ```
 
 ## 🔧 使い方
