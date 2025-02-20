@@ -4,12 +4,12 @@ import crypto from 'crypto';
 /**
  * レート制限エラー
  */
-class TooManyRequestsError extends Error {
+export class TooManyRequestsError extends Error {
     remainingTime: number;
 
     constructor(resetTime: number) {
         const remainingSeconds = resetTime - Math.floor(Date.now() / 1000);
-        const message = `レート制限に達しました。解除まで約${Math.ceil(remainingSeconds / 60)}分待ってください。`;
+        const message = `Rate Limit Exceeded. Please wait for ${Math.ceil(remainingSeconds / 60)} minutes, ${Math.ceil(remainingSeconds % 60)} seconds.`;
         super(message);
         this.name = 'TooManyRequestsError';
         this.remainingTime = remainingSeconds;
@@ -18,28 +18,81 @@ class TooManyRequestsError extends Error {
 
 /**
  * 認証エラー
+ * 401エラー
  */
-class AuthenticationError extends Error {
-    constructor(message: string = '認証エラーが発生しました。Bearer Tokenが正しいか確認してください。') {
+export class AuthenticationError extends Error {
+    constructor(message: string) {
         super(message);
-        this.name = 'AuthenticationError';  // 401用
+        this.name = 'AuthenticationError';
     }
 }
 
 /**
  * 認可エラー
+ * 403エラー
  */
-class AuthorizationError extends Error {
-    constructor(message: string = '権限エラーが発生しました。アカウントの状態やAPIの権限を確認してください。') {
+export class AuthorizationError extends Error {
+    constructor(message: string) {
         super(message);
-        this.name = 'AuthorizationError';  // 403用
+        this.name = 'AuthorizationError';
     }
+}
+
+/**
+ * ツイートの型定義
+ */
+export interface Tweet {
+    id: string;
+    text: string;
+    author_id: string;
+    created_at: string;
+    referenced_tweets?: {
+        type: string;
+        id: string;
+    }[];
+}
+
+/**
+ * ユーザーの型定義
+ */
+export interface User {
+    id: string;
+    username: string;
+    name: string;
+}
+
+/**
+ * メンション検索のレスポンス型
+ */
+export interface SearchResponse {
+    data: Tweet[];
+    includes?: {
+        users: User[];
+        tweets: Tweet[];
+    };
+    meta: {
+        newest_id: string;
+        oldest_id: string;
+        result_count: number;
+        next_token?: string;
+    };
+}
+
+/**
+ * リプライ投稿のレスポンス型
+ */
+export interface ReplyResponse {
+    data: {
+        id: string;
+        text: string;
+        edit_history_tweet_ids: string[];
+    };
 }
 
 /**
  * OAuth認証の設定
  */
-interface OAuthConfig {
+export interface OAuthConfig {
     apiKey: string;
     apiKeySecret: string;
     accessToken: string;
@@ -49,14 +102,14 @@ interface OAuthConfig {
 /**
  * Bearer Token認証の設定
  */
-interface BearerTokenConfig {
+export interface BearerTokenConfig {
     bearerToken: string;
 }
 
 /**
  * 認証モード
  */
-type AuthMode = 'oauth' | 'bearer';
+export type AuthMode = 'oauth' | 'bearer';
 
 /**
  * Twitter API v2クライアント
@@ -111,17 +164,17 @@ export class TwiiterAPIv2Client {
         return oauth.toHeader(authorization)['Authorization'];
     }
 
-    private async checkResponse(response: Response) {
+    private async checkResponse(response: Response): Promise<any> {
         const responseBody = await response.json(); // JSONとしてパース
 
         // レート制限に引っかかったらエラーを投げる
         if (response.status === 429) throw new TooManyRequestsError(parseInt(response.headers.get('x-rate-limit-reset') || '0'));
 
         // 認証エラー
-        if (response.status === 401) throw new AuthenticationError(`認証エラーが発生しました。詳細: ${JSON.stringify(responseBody)}`);
+        if (response.status === 401) throw new AuthenticationError(`Authentication Error: ${JSON.stringify(responseBody)}`);
 
         // 認可エラー
-        if (response.status === 403) throw new AuthorizationError(`権限エラーが発生しました。詳細: ${JSON.stringify(responseBody)}`);
+        if (response.status === 403) throw new AuthorizationError(`Authorization Error: ${JSON.stringify(responseBody)}`);
 
         // 成功時はパース済みのボディを返す
         return responseBody;
@@ -136,7 +189,7 @@ export class TwiiterAPIv2Client {
      *
      * @see https://docs.x.com/x-api/posts/recent-search
      */
-    public async searchRecentMentionsToUser(username: string, sinceId: string, allowedUsers: string[] = []) {
+    public async searchRecentMentionsToUser(username: string, sinceId: string, allowedUsers: string[] = []): Promise<SearchResponse> {
         // 許可ユーザーからのツイートのクエリを構築
         const fromQuery = allowedUsers.length > 0
             ? allowedUsers.map(user => `from:${user}`).join(' OR ')
@@ -180,7 +233,7 @@ export class TwiiterAPIv2Client {
      *
      * @see https://docs.x.com/x-api/posts/creation-of-a-post
      */
-    public async replyToTweet(tweetId: string, message: string) {
+    public async replyToTweet(tweetId: string, message: string): Promise<ReplyResponse> {
         // リクエスト先のURLを作成
         const url = 'https://api.x.com/2/tweets';
 
@@ -214,7 +267,7 @@ export class TwiiterAPIv2Client {
      *
      * @see https://docs.x.com/x-api/posts/recent-search
      */
-    public async searchTweets(query: string) {
+    public async searchTweets(query: string): Promise<SearchResponse> {
         // クエリパラメータを設定
         const params = new URLSearchParams({
             'query': query,
