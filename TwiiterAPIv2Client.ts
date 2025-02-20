@@ -37,19 +37,78 @@ class AuthorizationError extends Error {
 }
 
 /**
- *
+ * OAuth認証の設定
+ */
+interface OAuthConfig {
+    apiKey: string;
+    apiKeySecret: string;
+    accessToken: string;
+    accessTokenSecret: string;
+}
+
+/**
+ * Bearer Token認証の設定
+ */
+interface BearerTokenConfig {
+    bearerToken: string;
+}
+
+/**
+ * 認証モード
+ */
+type AuthMode = 'oauth' | 'bearer';
+
+/**
+ * Twitter API v2クライアント
  */
 export class TwiiterAPIv2Client {
-    private apiKey: string;
-    private apiKeySecret: string;
-    private accessToken: string;
-    private accessTokenSecret: string;
+    private readonly oAuthConfig: OAuthConfig;
+    private readonly bearerToken: string;
 
-    constructor(apiKey: string, apiKeySecret: string, accessToken: string, accessTokenSecret: string) {
-        this.apiKey = apiKey;
-        this.apiKeySecret = apiKeySecret;
-        this.accessToken = accessToken;
-        this.accessTokenSecret = accessTokenSecret;
+    /**
+     * Twitter API v2クライアントを初期化
+     * @param oAuthConfig OAuth認証情報（書き込み操作用）
+     * @param bearerConfig Bearer Token認証情報（読み取り操作用）
+     */
+    constructor(oAuthConfig: OAuthConfig, bearerConfig: BearerTokenConfig) {
+        this.oAuthConfig = oAuthConfig;
+        this.bearerToken = bearerConfig.bearerToken;
+    }
+
+    /**
+     * Bearer Token認証ヘッダーを生成（読み取り操作用）
+     */
+    private getBearerHeader(): string {
+        return `Bearer ${this.bearerToken}`;
+    }
+
+    /**
+     * OAuth認証ヘッダーを生成（書き込み操作用）
+     */
+    private async generateOAuthHeader(method: string, url: string): Promise<string> {
+        const oauth = new OAuth({
+            consumer: { key: this.oAuthConfig.apiKey, secret: this.oAuthConfig.apiKeySecret },
+            signature_method: 'HMAC-SHA1',
+            hash_function(baseString, key) {
+                return crypto
+                    .createHmac('sha1', key)
+                    .update(baseString)
+                    .digest('base64');
+            },
+        });
+
+        const authorization = oauth.authorize(
+            {
+                url,
+                method,
+            },
+            {
+                key: this.oAuthConfig.accessToken,
+                secret: this.oAuthConfig.accessTokenSecret,
+            }
+        );
+
+        return oauth.toHeader(authorization)['Authorization'];
     }
 
     private async checkResponse(response: Response) {
@@ -68,50 +127,41 @@ export class TwiiterAPIv2Client {
         return responseBody;
     }
 
-    private async generateOAuthHeader(method: string, url: string): Promise<string> {
-        const oauth = new OAuth({
-            consumer: { key: this.apiKey, secret: this.apiKeySecret },
-            signature_method: 'HMAC-SHA1',
-            hash_function(baseString, key) {
-                return crypto
-                    .createHmac('sha1', key)
-                    .update(baseString)
-                    .digest('base64');
-            },
-        });
-
-        const authorization = oauth.authorize(
-            {
-                url,
-                method,
-            },
-            {
-                key: this.accessToken,
-                secret: this.accessTokenSecret,
-            }
-        );
-
-        return oauth.toHeader(authorization)['Authorization'];
-    }
-
     /**
-     * 指定ユーザーに対して指定したツイートIDより新しいメンションを取得する
+     * 指定ユーザーに対して指定したツイートIDより新しいメンションを取得する（Bearer Token認証）
      * @param username ユーザー名(ex. 'RateteDev')
      * @param sinceId ツイートID(ex. '1892178130493944087')
+     * @param allowedUsers 許可するユーザー名の配列(ex. ['RateteDev', 'AnotherUser'])
      * @returns APIのレスポンスボディ
      *
      * @see https://docs.x.com/x-api/posts/recent-search
      */
-    public async searchRecentMentionsToUser(username: string, sinceId: string) {
+    public async searchRecentMentionsToUser(username: string, sinceId: string, allowedUsers: string[] = []) {
+        // 許可ユーザーからのツイートのクエリを構築
+        const fromQuery = allowedUsers.length > 0
+            ? allowedUsers.map(user => `from:${user}`).join(' OR ')
+            : '';
+
+        // メンションと許可ユーザーのクエリを組み合わせ
+        const query = allowedUsers.length > 0
+            ? `(@${username}) (${fromQuery})`
+            : `@${username}`;
+
         // リクエスト先のURLを作成
-        const query = encodeURIComponent(`@${username}`);
-        const url = `https://api.x.com/2/tweets/search/recent?query=${query}&since_id=${sinceId}`;
-        // リクエストオプションの設定
-        const authHeader = await this.generateOAuthHeader('GET', url);
+        const params = new URLSearchParams({
+            'query': query,
+            'since_id': sinceId,
+            'tweet.fields': 'text,referenced_tweets,author_id,created_at',
+            'expansions': 'referenced_tweets.id,author_id',
+            'user.fields': 'username'
+        });
+        const url = `https://api.x.com/2/tweets/search/recent?${params.toString()}`;
+
+        // リクエストオプションの設定（Bearer Token認証固定）
         const options = {
             method: 'GET',
             headers: {
-                'Authorization': authHeader,
+                'Authorization': this.getBearerHeader(),
             },
         };
 
@@ -123,7 +173,7 @@ export class TwiiterAPIv2Client {
     }
 
     /**
-     * 指定されたツイートに対して返信を行う
+     * 指定されたツイートに対して返信を行う（OAuth認証）
      * @param tweetId ツイートのID
      * @param message 返信のメッセージ
      * @returns 返信のデータ
@@ -133,7 +183,8 @@ export class TwiiterAPIv2Client {
     public async replyToTweet(tweetId: string, message: string) {
         // リクエスト先のURLを作成
         const url = 'https://api.x.com/2/tweets';
-        // リクエストオプションの設定
+
+        // リクエストオプションの設定（OAuth認証固定）
         const authHeader = await this.generateOAuthHeader('POST', url);
         const options = {
             method: 'POST',
@@ -147,6 +198,41 @@ export class TwiiterAPIv2Client {
                     in_reply_to_tweet_id: tweetId
                 }
             })
+        };
+
+        // リクエストを投げる
+        const response = await fetch(url, options);
+
+        // レスポンスのチェックと同時にJSONを取得
+        return await this.checkResponse(response);
+    }
+
+    /**
+     * 指定された条件でツイートを検索する
+     * @param query 検索クエリ
+     * @returns APIのレスポンスボディ
+     *
+     * @see https://docs.x.com/x-api/posts/recent-search
+     */
+    public async searchTweets(query: string) {
+        // クエリパラメータを設定
+        const params = new URLSearchParams({
+            'query': query,
+            'tweet.fields': 'conversation_id,id,in_reply_to_user_id,referenced_tweets,context_annotations,created_at,text,author_id',
+            'expansions': 'referenced_tweets.id,referenced_tweets.id.author_id,in_reply_to_user_id,author_id',
+            'user.fields': 'username,name,verified,protected'
+        });
+
+        // リクエスト先のURLを作成
+        const url = `https://api.x.com/2/tweets/search/recent?${params.toString()}`;
+
+        // リクエストオプションの設定
+        const authHeader = await this.generateOAuthHeader('GET', url);
+        const options = {
+            method: 'GET',
+            headers: {
+                'Authorization': authHeader,
+            },
         };
 
         // リクエストを投げる
