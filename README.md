@@ -1,9 +1,9 @@
-# twitter-ai-context
+# 🤖 twitter-ai-context
 
 TwitterのコンテキストをAIエージェントのために最適化して提供するライブラリ。
 リプライチェーンや会話の文脈を構造化し、AIが理解しやすい形式で提供します。
 
-## 主な機能
+## 🎯 主な機能
 
 1. コンテキストの構造化
    - リプライチェーンの自動追跡
@@ -20,7 +20,7 @@ TwitterのコンテキストをAIエージェントのために最適化して�
    - 必要最小限のAPI呼び出し
    - キャッシュ機構の活用
 
-## インストール
+## 📦 インストール
 
 ```bash
 bun add twitter-ai-context
@@ -28,7 +28,7 @@ bun add twitter-ai-context
 npm install twitter-ai-context
 ```
 
-## 使用例
+## 💡 使用例
 
 ```typescript
 import { TwitterAIContext } from 'twitter-ai-context';
@@ -36,18 +36,18 @@ import { TwitterAIContext } from 'twitter-ai-context';
 // クライアントの初期化
 const client = new TwitterAIContext(
     {
-        apiKey: 'YOUR_API_KEY',
-        apiKeySecret: 'YOUR_API_KEY_SECRET',
-        accessToken: 'YOUR_ACCESS_TOKEN',
-        accessTokenSecret: 'YOUR_ACCESS_TOKEN_SECRET'
+        apiKey: 'API_KEY_XXXXX',
+        apiKeySecret: 'API_KEY_SECRET_XXXXX',
+        accessToken: 'ACCESS_TOKEN_XXXXX',
+        accessTokenSecret: 'ACCESS_TOKEN_SECRET_XXXXX'
     },
     {
-        bearerToken: 'YOUR_BEARER_TOKEN'
+        bearerToken: 'BEARER_TOKEN_XXXXX'
     }
 );
 
 // 構造化されたメンション情報の取得
-const mentions = await client.getStructuredMentions('BotName', sinceId);
+const mentions = await client.getStructuredMentions('AssistantBot', '123456789');
 
 // AIエージェントへの入力例
 const context = mentions[0].context?.replied_to?.text;
@@ -58,38 +58,38 @@ const response = await aiAgent.chat(query, { context });
 await client.replyToTweet(mentions[0].mention.id, response);
 ```
 
-## レスポンス例
+## 📝 レスポンス例
 
 ```typescript
 // 構造化されたメンション情報
 {
     "mention": {
-        "id": "1892570591946797469",
-        "text": "@RateteBOT テスト用、これのリプライ元のツイートでは何と言ってる？",
+        "id": "123456789012345678",
+        "text": "@AssistantBot こんにちは！前回の会話の続きをお願いします。",
         "author": {
-            "id": "1777178305877487616",
-            "name": "Ratete",
-            "username": "RateteDev"
+            "id": "987654321098765432",
+            "name": "Example User",
+            "username": "example_user"
         },
-        "created_at": "2025-02-20T13:42:46.000Z"
+        "created_at": "2025-01-01T12:00:00.000Z"
     },
     "context": {
         "replied_to": {
-            "id": "1891897335384318147",
-            "text": "Claude振る舞いがめちゃくちゃ人間らしいよね\n他のモデルだとあんまりこういう反応しない",
+            "id": "123456789012345677",
+            "text": "今日は素晴らしい天気ですね。散歩に行きませんか？",
             "author": {
-                "id": "1777178305877487616",
-                "name": "Ratete",
-                "username": "RateteDev"
+                "id": "987654321098765432",
+                "name": "Example User",
+                "username": "example_user"
             },
-            "created_at": "2025-02-18T17:07:29.000Z"
+            "created_at": "2025-01-01T11:55:00.000Z"
         },
-        "conversation_id": "1891897335384318147"
+        "conversation_id": "123456789012345677"
     }
 }
 ```
 
-## 開発
+## 🛠️ 開発
 
 ```bash
 # 依存関係のインストール
@@ -102,10 +102,10 @@ bun test
 bun run build
 ```
 
-## ライセンス
+## 📄 ライセンス
 
 MIT
 
-## 作者
+## 👤 作者
 
-RateteDev
+Ratete ([@RateteDev](https://twitter.com/RateteDev) / [GitHub](https://github.com/RateteDev))
