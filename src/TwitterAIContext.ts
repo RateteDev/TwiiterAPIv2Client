@@ -210,16 +210,7 @@ export class TwitterAIContext {
         return responseBody;
     }
 
-    /**
-     * 指定ユーザーに対して指定したツイートIDより新しいメンションを取得する（Bearer Token認証）
-     * @param username ユーザー名(ex. 'RateteDev')
-     * @param sinceId ツイートID(ex. '1892178130493944087')
-     * @param allowedUsers 許可するユーザー名の配列(ex. ['RateteDev', 'AnotherUser'])
-     * @returns APIのレスポンスボディ
-     *
-     * @see https://docs.x.com/x-api/posts/recent-search
-     */
-    public async searchRecentMentionsToUser(username: string, sinceId: string, allowedUsers: string[] = []): Promise<SearchResponse> {
+    private async searchRecentMentionsToUser(username: string, sinceId: string, allowedUsers: string[] = []): Promise<SearchResponse> {
         // 許可ユーザーからのツイートのクエリを構築
         const fromQuery = allowedUsers.length > 0
             ? allowedUsers.map(user => `from:${user}`).join(' OR ')
@@ -291,11 +282,13 @@ export class TwitterAIContext {
     }
 
     /**
-     * メンション情報を構造化された形式で取得
-     * @param username ユーザー名(ex. 'RateteDev')
-     * @param sinceId ツイートID(ex. '1892178130493944087')
-     * @param allowedUsers 許可するユーザー名の配列(ex. ['RateteDev', 'AnotherUser'])
+     * 特定のユーザー宛てのメンション情報をフィルターして取得(Bearer Token認証)
+     * @param username 宛先のユーザー名(ex. 'RateteOne')
+     * @param sinceId ツイートID, これより新しいメンションが取得される
+     * @param allowedUsers 許可するユーザー名の配列(ex. ['RateteSecond', 'RateteThird'])
      * @returns 構造化されたメンション情報の配列
+     *
+     * @see https://docs.x.com/x-api/posts/recent-search
      */
     public async getStructuredMentions(
         username: string,

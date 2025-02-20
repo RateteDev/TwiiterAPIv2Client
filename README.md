@@ -30,32 +30,79 @@ npm install twitter-ai-context
 
 ## 💡 使用例
 
+### Clientの作成
 ```typescript
-import { TwitterAIContext } from 'twitter-ai-context';
+import { TwitterAIContext, type OAuthConfig, type BearerTokenConfig } from 'twitter-ai-context';
+
+const TWITTER_API_KEY = process.env.TWITTER_API_KEY;
+const TWITTER_API_KEY_SECRET = process.env.TWITTER_API_KEY_SECRET;
+const TWITTER_ACCESS_TOKEN = process.env.TWITTER_ACCESS_TOKEN;
+const TWITTER_ACCESS_TOKEN_SECRET = process.env.TWITTER_ACCESS_TOKEN_SECRET;
+const TWITTER_BEARER_TOKEN = process.env.TWITTER_BEARER_TOKEN;
+
+// 認証情報の型定義
+const oAuthConfig = {
+    apiKey: TWITTER_API_KEY,
+    apiKeySecret: TWITTER_API_KEY_SECRET,
+    accessToken: TWITTER_ACCESS_TOKEN,
+    accessTokenSecret: TWITTER_ACCESS_TOKEN_SECRET
+} satisfies OAuthConfig;
+
+const bearerConfig = {
+    bearerToken: TWITTER_BEARER_TOKEN
+} satisfies BearerTokenConfig;
 
 // クライアントの初期化
-const client = new TwitterAIContext(
-    {
-        apiKey: 'API_KEY_XXXXX',
-        apiKeySecret: 'API_KEY_SECRET_XXXXX',
-        accessToken: 'ACCESS_TOKEN_XXXXX',
-        accessTokenSecret: 'ACCESS_TOKEN_SECRET_XXXXX'
-    },
-    {
-        bearerToken: 'BEARER_TOKEN_XXXXX'
-    }
+const client = new TwitterAIContext(oAuthConfig, bearerConfig);
+```
+
+### メンションの取得
+```typescript
+/**
+ * 特定のユーザー宛てのメンション情報をフィルターして取得(Bearer Token認証)
+ * @param username 宛先のユーザー名(ex. 'RateteOne')
+ * @param sinceId ツイートID, これより新しいメンションが取得される
+ * @param allowedUsers 許可するユーザー名の配列(ex. ['RateteSecond', 'RateteThird'])
+ * @returns 構造化されたメンション情報の配列
+ *
+ * @see https://docs.x.com/x-api/posts/recent-search
+ */
+const mentions = await client.getStructuredMentions(
+    'RateteOne',           // 宛先のユーザー名
+    '123456789012345678',  // 取得開始するツイートID
+    ['RateteSecond', 'RateteThird']       // 許可する送信元ユーザーの配列（省略可能）
 );
+```
 
-// 構造化されたメンション情報の取得
-const mentions = await client.getStructuredMentions('AssistantBot', '123456789');
+### 返信
+```typescript
+/**
+ * 指定されたツイートに対して返信を行う（OAuth認証）
+ * @param tweetId ツイートのID
+ * @param message 返信のメッセージ
+ * @returns 返信のデータ
+ *
+ * @see https://docs.x.com/x-api/posts/creation-of-a-post
+ */
+await client.replyToTweet("123456789012345678", "こんにちは！");
+```
 
-// AIエージェントへの入力例
-const context = mentions[0].context?.replied_to?.text;
-const query = mentions[0].mention.text;
-const response = await aiAgent.chat(query, { context });
+## ⚠️ 注意事項
 
-// 返信の送信
-await client.replyToTweet(mentions[0].mention.id, response);
+- Twitter APIの無料枠の場合、15分ごとに検索回数の制限があります
+- 制限に達した場合、`TooManyRequestsError`が発生し、制限解除までの残り時間が表示されます
+
+## 🚨 エラーハンドリング
+
+```typescript
+// レート制限エラーの型定義
+interface TooManyRequestsError extends Error {
+    remainingTime: number;  // 制限解除までの残り時間（秒）
+}
+
+// エラー出力例
+TooManyRequestsError: Rate Limit Exceeded. Please wait for 10 minutes, 37 seconds.
+remainingTime: 577
 ```
 
 ## 📝 レスポンス例
@@ -65,22 +112,22 @@ await client.replyToTweet(mentions[0].mention.id, response);
 {
     "mention": {
         "id": "123456789012345678",
-        "text": "@AssistantBot こんにちは！前回の会話の続きをお願いします。",
+        "text": "@RateteOne このライブの予定をカレンダーに追加しておいて！",
         "author": {
             "id": "987654321098765432",
-            "name": "Example User",
-            "username": "example_user"
+            "name": "RateteSecond",
+            "username": "RateteSecond"
         },
         "created_at": "2025-01-01T12:00:00.000Z"
     },
     "context": {
         "replied_to": {
             "id": "123456789012345677",
-            "text": "今日は素晴らしい天気ですね。散歩に行きませんか？",
+            "text": "🎸 Crimson Whispers 初ワンマンライブ決定！\n\n📅 2025年3月15日(土)\n🕒 開場18:00 / 開演18:30\n🏟️ Starlight Hall\n\n🎟️ チケット情報\n前売り：¥4,500\n当日：¥5,000\n\n✨ 特典：限定ポスター付き\n\n予約開始：2025年1月15日10:00〜\n#CrystalEchoes #ライブ告知",
             "author": {
                 "id": "987654321098765432",
-                "name": "Example User",
-                "username": "example_user"
+                "name": "RateteSecond",
+                "username": "RateteSecond"
             },
             "created_at": "2025-01-01T11:55:00.000Z"
         },
