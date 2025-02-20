@@ -50,6 +50,8 @@ export interface Tweet {
         type: string;
         id: string;
     }[];
+    in_reply_to_user_id?: string;
+    conversation_id?: string;
 }
 
 /**
@@ -112,14 +114,42 @@ export interface BearerTokenConfig {
 export type AuthMode = 'oauth' | 'bearer';
 
 /**
- * Twitter API v2クライアント
+ * 構造化されたメンション情報
  */
-export class TwiiterAPIv2Client {
+export interface StructuredMention {
+    mention: {
+        id: string;
+        text: string;
+        author: User;
+        created_at: string;
+    };
+    context?: {
+        replied_to?: {
+            id: string;
+            text: string;
+            author: User;
+            created_at: string;
+        };
+        quoted?: {
+            id: string;
+            text: string;
+            author: User;
+            created_at: string;
+        };
+        conversation_id: string;
+    };
+}
+
+/**
+ * Twitter AIコンテキストプロバイダー
+ * TwitterのコンテキストをAIエージェントのために最適化して提供するクラス
+ */
+export class TwitterAIContext {
     private readonly oAuthConfig: OAuthConfig;
     private readonly bearerToken: string;
 
     /**
-     * Twitter API v2クライアントを初期化
+     * Twitter AIコンテキストプロバイダーを初期化
      * @param oAuthConfig OAuth認証情報（書き込み操作用）
      * @param bearerConfig Bearer Token認証情報（読み取り操作用）
      */
@@ -204,8 +234,8 @@ export class TwiiterAPIv2Client {
         const params = new URLSearchParams({
             'query': query,
             'since_id': sinceId,
-            'tweet.fields': 'text,referenced_tweets,author_id,created_at',
-            'expansions': 'referenced_tweets.id,author_id',
+            'tweet.fields': 'text,referenced_tweets,author_id,created_at,in_reply_to_user_id,conversation_id',
+            'expansions': 'referenced_tweets.id,author_id,in_reply_to_user_id,referenced_tweets.id.author_id',
             'user.fields': 'username'
         });
         const url = `https://api.x.com/2/tweets/search/recent?${params.toString()}`;
@@ -261,37 +291,76 @@ export class TwiiterAPIv2Client {
     }
 
     /**
-     * 指定された条件でツイートを検索する
-     * @param query 検索クエリ
-     * @returns APIのレスポンスボディ
-     *
-     * @see https://docs.x.com/x-api/posts/recent-search
+     * メンション情報を構造化された形式で取得
+     * @param username ユーザー名(ex. 'RateteDev')
+     * @param sinceId ツイートID(ex. '1892178130493944087')
+     * @param allowedUsers 許可するユーザー名の配列(ex. ['RateteDev', 'AnotherUser'])
+     * @returns 構造化されたメンション情報の配列
      */
-    public async searchTweets(query: string): Promise<SearchResponse> {
-        // クエリパラメータを設定
-        const params = new URLSearchParams({
-            'query': query,
-            'tweet.fields': 'conversation_id,id,in_reply_to_user_id,referenced_tweets,context_annotations,created_at,text,author_id',
-            'expansions': 'referenced_tweets.id,referenced_tweets.id.author_id,in_reply_to_user_id,author_id',
-            'user.fields': 'username,name,verified,protected'
+    public async getStructuredMentions(
+        username: string,
+        sinceId: string,
+        allowedUsers: string[] = []
+    ): Promise<StructuredMention[]> {
+        const response = await this.searchRecentMentionsToUser(username, sinceId, allowedUsers);
+
+        return response.data.map(tweet => {
+            // ユーザー情報の取得
+            const getUser = (userId: string): User => {
+                const user = response.includes?.users.find(u => u.id === userId);
+                if (!user) throw new Error(`User not found: ${userId}`);
+                return user;
+            };
+
+            // ツイート情報の取得
+            const getTweet = (tweetId: string) => {
+                const referencedTweet = response.includes?.tweets.find(t => t.id === tweetId);
+                if (!referencedTweet) throw new Error(`Tweet not found: ${tweetId}`);
+                return referencedTweet;
+            };
+
+            // 基本的なメンション情報
+            const structured: StructuredMention = {
+                mention: {
+                    id: tweet.id,
+                    text: tweet.text,
+                    author: getUser(tweet.author_id),
+                    created_at: tweet.created_at
+                }
+            };
+
+            // コンテキスト情報の追加
+            if (tweet.conversation_id || tweet.referenced_tweets) {
+                structured.context = {
+                    conversation_id: tweet.conversation_id || tweet.id
+                };
+
+                // リプライ元の情報
+                const replyTo = tweet.referenced_tweets?.find(ref => ref.type === 'replied_to');
+                if (replyTo) {
+                    const replyToTweet = getTweet(replyTo.id);
+                    structured.context.replied_to = {
+                        id: replyToTweet.id,
+                        text: replyToTweet.text,
+                        author: getUser(replyToTweet.author_id),
+                        created_at: replyToTweet.created_at
+                    };
+                }
+
+                // 引用元の情報
+                const quote = tweet.referenced_tweets?.find(ref => ref.type === 'quoted');
+                if (quote) {
+                    const quotedTweet = getTweet(quote.id);
+                    structured.context.quoted = {
+                        id: quotedTweet.id,
+                        text: quotedTweet.text,
+                        author: getUser(quotedTweet.author_id),
+                        created_at: quotedTweet.created_at
+                    };
+                }
+            }
+
+            return structured;
         });
-
-        // リクエスト先のURLを作成
-        const url = `https://api.x.com/2/tweets/search/recent?${params.toString()}`;
-
-        // リクエストオプションの設定
-        const authHeader = await this.generateOAuthHeader('GET', url);
-        const options = {
-            method: 'GET',
-            headers: {
-                'Authorization': authHeader,
-            },
-        };
-
-        // リクエストを投げる
-        const response = await fetch(url, options);
-
-        // レスポンスのチェックと同時にJSONを取得
-        return await this.checkResponse(response);
     }
 }

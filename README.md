@@ -1,59 +1,111 @@
-# 🐦 TwiiterAPIv2Client
+# twitter-ai-context
 
-Twitter API v2のシンプルなTypeScriptクライアント実装です。
+TwitterのコンテキストをAIエージェントのために最適化して提供するライブラリ。
+リプライチェーンや会話の文脈を構造化し、AIが理解しやすい形式で提供します。
 
-## 🚀 特徴
+## 主な機能
 
-- TypeScript/JavaScript両対応
-- OAuth 1.0a認証サポート
-- シンプルなAPI
-- bunランタイム対応
+1. コンテキストの構造化
+   - リプライチェーンの自動追跡
+   - 会話の文脈を階層的に整理
+   - 関連ユーザー情報の統合
 
-## 📦 インストール
+2. AI最適化
+   - 文脈を失わない情報構造
+   - 必要な情報のみを効率的に抽出
+   - 一貫した型定義による安全性
+
+3. 効率的なAPI利用
+   - レート制限を考慮した設計
+   - 必要最小限のAPI呼び出し
+   - キャッシュ機構の活用
+
+## インストール
 
 ```bash
-bun add github:RateteDev/TwiiterAPIv2Client
+bun add twitter-ai-context
+# or
+npm install twitter-ai-context
 ```
 
-## 🔧 使い方
-
-### クライアントの初期化
+## 使用例
 
 ```typescript
-import TwiiterAPIv2Client from 'twiiter-api-v2-client';
+import { TwitterAIContext } from 'twitter-ai-context';
 
-const client = new TwiiterAPIv2Client(
-    process.env.API_KEY,
-    process.env.API_KEY_SECRET,
-    process.env.ACCESS_TOKEN,
-    process.env.ACCESS_TOKEN_SECRET
+// クライアントの初期化
+const client = new TwitterAIContext(
+    {
+        apiKey: 'YOUR_API_KEY',
+        apiKeySecret: 'YOUR_API_KEY_SECRET',
+        accessToken: 'YOUR_ACCESS_TOKEN',
+        accessTokenSecret: 'YOUR_ACCESS_TOKEN_SECRET'
+    },
+    {
+        bearerToken: 'YOUR_BEARER_TOKEN'
+    }
 );
+
+// 構造化されたメンション情報の取得
+const mentions = await client.getStructuredMentions('BotName', sinceId);
+
+// AIエージェントへの入力例
+const context = mentions[0].context?.replied_to?.text;
+const query = mentions[0].mention.text;
+const response = await aiAgent.chat(query, { context });
+
+// 返信の送信
+await client.replyToTweet(mentions[0].mention.id, response);
 ```
 
-### メンションの取得
+## レスポンス例
 
 ```typescript
-// 指定したツイートID以降のメンションを取得
-const mentions = await client.searchRecentMentionsToUser('username', 'tweetId');
-console.log(mentions);
+// 構造化されたメンション情報
+{
+    "mention": {
+        "id": "1892570591946797469",
+        "text": "@RateteBOT テスト用、これのリプライ元のツイートでは何と言ってる？",
+        "author": {
+            "id": "1777178305877487616",
+            "name": "Ratete",
+            "username": "RateteDev"
+        },
+        "created_at": "2025-02-20T13:42:46.000Z"
+    },
+    "context": {
+        "replied_to": {
+            "id": "1891897335384318147",
+            "text": "Claude振る舞いがめちゃくちゃ人間らしいよね\n他のモデルだとあんまりこういう反応しない",
+            "author": {
+                "id": "1777178305877487616",
+                "name": "Ratete",
+                "username": "RateteDev"
+            },
+            "created_at": "2025-02-18T17:07:29.000Z"
+        },
+        "conversation_id": "1891897335384318147"
+    }
+}
 ```
 
-### ツイートへの返信
+## 開発
 
-```typescript
-// 指定したツイートに返信
-const reply = await client.replyToTweet('tweetId', '返信メッセージ');
-console.log(reply);
+```bash
+# 依存関係のインストール
+bun install
+
+# テストの実行
+bun test
+
+# ビルド
+bun run build
 ```
 
-## ⚠️ エラーハンドリング
+## ライセンス
 
-クライアントは以下の種類のエラーをスローします：
+MIT
 
-- `TooManyRequestsError`: レート制限に達した場合
-- `AuthenticationError`: 認証エラー（401）
-- `AuthorizationError`: 認可エラー（403）
+## 作者
 
-## 📝 ライセンス
-
-MITライセンスで提供されています。詳細は[LICENSE](LICENSE)ファイルを参照してください。
+RateteDev
